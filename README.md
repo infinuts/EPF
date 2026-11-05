@@ -48,6 +48,8 @@ The default lease is one hour. Your router expires it even if EPF is closed. EPF
 
 - Detect the default interface, local IPv4 address, and gateway.
 - Discover a UPnP router and read its name, manufacturer, and model when available.
+- Retry discovery directly against the default gateway when multicast discovery fails.
+- Inspect individual ports on WANIPConnection v1/v2 and WANPPPConnection routers, including those with broken full-table listing.
 - Open and close TCP and UDP rules, including different external and internal ports.
 - Forward to this computer or a unicast IPv4 destination on the detected local subnet.
 - Refresh EPF's saved rules against the router, with active, inactive, pending, unknown, and conflict states.
@@ -57,6 +59,8 @@ The default lease is one hour. Your router expires it even if EPF is closed. EPF
 - Use the desktop interface or the standalone CLI.
 
 NAT-PMP, PCP, IPv6 firewall pinholes, automatic lease renewal, and an external port-testing service are outside this MVP.
+
+Router support depends on firmware and settings. See the [compatibility guide](docs/router-compatibility.md) for sourced router-family notes, the new discovery and query paths, and what has actually been tested.
 
 ## A router rule isn't an internet test
 
@@ -101,7 +105,7 @@ epf --config ./epf-config.json --json list
 
 EPF doesn't ask for router passwords. Discovery, refresh, and diagnostics don't change forwarding rules. The optional public IP check is the only application feature that contacts an external service, and it is off by default. There is no telemetry or account system.
 
-Before opening a port, EPF inspects the router's visible mappings and refuses an occupied external port/protocol. Before deleting one, it checks the router identity, destination, internal port, protocol, and unique `EPF:<uuid>` description against its local journal. A router that won't allow these checks needs manual configuration.
+Before opening a port, EPF queries the requested external port/protocol and refuses an occupied mapping. If the router explicitly doesn't support individual queries, EPF falls back to its original table-listing path. Before deleting one, it checks the router identity, destination, internal port, protocol, and unique `EPF:<uuid>` description against its local journal. A router that won't allow either inspection method needs manual configuration.
 
 Operations are saved before EPF sends a change to the router. If TCP succeeds and UDP fails, EPF keeps separate records and reports partial completion. A timeout can mean the router acted without returning a reply, so refresh before retrying. EPF doesn't silently remove a successful protocol to undo a partial request.
 

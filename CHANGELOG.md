@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+- Targeted UPnP mapping reads for routers without working table enumeration, with a legacy fallback on explicit unsupported-action responses.
+- Directed SSDP retry to the default gateway when multicast fails or discovers a different device.
+- Sourced router compatibility guide and local HTTP protocol tests for IP v1/v2 and PPP services.
+
 - Shared Rust engine for desktop and CLI.
 - Local IPv4, default gateway, and UPnP discovery with optional router metadata.
 - Confirmed TCP and UDP forwarding, custom destinations and ports, and finite leases.

@@ -4,7 +4,7 @@ Checked on 2026-11-05 in Windows x64 with Node.js 24.18.0 and Rust 1.99.1.
 
 | Check                                                    | Result                                           |
 | -------------------------------------------------------- | ------------------------------------------------ |
-| Core Rust tests                                          | 12 passed                                        |
+| Core Rust tests                                          | 17 passed                                        |
 | CLI executable integration tests                         | 3 passed                                         |
 | Frontend validation tests                                | 3 passed                                         |
 | Playwright browser flows                                 | 6 passed                                         |
@@ -51,3 +51,11 @@ The sixth browser test checks that the pinned help panel stays above the termina
 The Windows executable and NSIS installer were rebuilt after this polish. Repeating the native smoke-check launch was blocked by the execution approval policy, so the native runtime results above describe the earlier MVP build. The polished build has production compilation and browser-flow verification, but has not been runtime-verified through native IPC again.
 
 To refresh the README screenshots, start `npm run dev` and run `node scripts/capture-preview.mjs`. This uses only the labeled browser preview and stops at confirmation without opening a port. Additional narrow-layout and help screenshots are saved in the ignored `artifacts/` directory.
+
+## Router compatibility extension
+
+The shared engine now uses targeted UPnP reads with a legacy enumeration fallback, and discovery retries the default gateway with unicast SSDP. Seventeen core tests and three CLI tests passed, along with Rust formatting, Clippy with warnings denied, frontend checks, three frontend validation tests, and six browser flows. Five added core tests cover IP v1/v2 and PPP responses, strict fault handling, malformed responses, loopback HTTP queries, and a lifecycle with full-table listing disabled.
+
+These are protocol and local mock results. No additional physical router has been verified. The [compatibility guide](router-compatibility.md) links the public specifications, GitHub projects, and vendor documentation used for this work.
+
+The rebuilt release CLI completed a read-only `--json status` request on the available LAN. It detected the default interface and gateway, exhausted the bounded discovery attempts, and reported no UPnP response without a crash. No forwarding rules were changed and no public IP lookup was requested.

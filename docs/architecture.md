@@ -16,7 +16,7 @@ flowchart LR
 
 ## Read-only discovery
 
-`netdev` reads the default interface and its IPv4 addresses and gateway. SSDP discovery binds to that local IPv4 address. If the responding device differs from the detected default gateway, EPF refuses to use it. `igd-next` validates the hosts of advertised device and service endpoints.
+`netdev` reads the default interface and its IPv4 addresses and gateway. SSDP discovery binds to that local IPv4 address. If multicast discovery fails or selects a different device, EPF retries unicast SSDP to the detected default gateway on UDP 1900. The retry is bounded to three seconds. EPF still refuses a responding device that differs from the default gateway. `igd-next` validates the hosts of advertised device and service endpoints.
 
 The adapter reads the device description with redirects disabled, a timeout, and a response-size limit. Router-provided names stay text in the interface. Failure to read metadata doesn't stop forwarding. Failure to discover UPnP gives a useful unsupported-network result.
 
@@ -26,7 +26,7 @@ The router WAN IP comes from UPnP. Only a user-approved public IP diagnostic con
 
 1. Validate the request and require explicit confirmation.
 2. Restrict the destination to a unicast IPv4 address in a subnet on the detected default interface. Reject that subnet's network and broadcast addresses.
-3. Enumerate visible router mappings. Refuse occupied external port/protocol keys. An enumeration error prevents mutation.
+3. Query the requested wildcard-remote-host port/protocol keys with `GetSpecificPortMappingEntry`. Refuse occupied keys. Only fault 714 means absent; fault 401 selects the legacy enumeration fallback. Any other error prevents mutation.
 4. Generate one UUID and `EPF:<uuid>` description per protocol.
 5. Save all intended operations as pending before contacting the router.
 6. Send each protocol request separately, persisting each confirmed result.
@@ -37,7 +37,9 @@ EPF requests finite leases between 60 seconds and 24 hours. A router that insist
 
 ## Refreshing and closing
 
-Refresh compares saved records with visible mappings. An exact owned match is active if enabled; an absent entry is inactive; a different entry at the same key is a conflict. An unreadable router or different network makes status unknown. Closed or superseded records are retired so reopening a port doesn't make its history claim the new mapping.
+Refresh queries only non-retired saved keys belonging to the current router, deduplicating repeated keys. An exact owned match is active if enabled; an absent entry is inactive; a different entry at the same key is a conflict. An unreadable router or different network makes status unknown. Closed or superseded records are retired so reopening a port doesn't make its history claim the new mapping.
+
+Targeted SOAP reads use the advertised WANIPConnection v1/v2 or WANPPPConnection v1 service, the detected local source address, no HTTP proxy or redirects, a three-second request timeout, a 64 KiB response limit, and a twenty-second batch budget (plus at most the final in-flight request). Invalid XML, missing ownership fields, duplicate fields, unexpected services, and ambiguous responses fail closed. The Router trait keeps a default `inspect` implementation using enumeration so existing adapters remain source compatible.
 
 Close requires confirmation, the original router identity, and a fresh ownership check. EPF compares the external port, protocol, internal port, internal IPv4, empty remote-host restriction, and UUID description. It refuses ambiguous or changed mappings. A rule already absent on the original router can be marked inactive without sending a delete.
 
