@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "Only the main local EPF window can call the desktop runtime.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
