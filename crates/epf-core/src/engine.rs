@@ -24,7 +24,14 @@ impl<R: Router> Engine<R> {
     }
 
     pub fn refresh(&mut self) -> Result<()> {
-        let mappings = match self.router.mappings() {
+        let keys: Vec<_> = self
+            .config
+            .rules
+            .iter()
+            .filter(|r| !r.retired && r.router_id == self.router.id())
+            .map(|r| (r.external_port, r.protocol))
+            .collect();
+        let mappings = match self.router.inspect(&keys) {
             Ok(mappings) => mappings,
             Err(e) => {
                 for rule in &mut self.config.rules {
@@ -57,7 +64,11 @@ impl<R: Router> Engine<R> {
             return Err(Error::Validation("Choose a destination on the detected local IPv4 subnet. VPN and remote destinations are not supported.".into()));
         }
         let protocols = request.protocol.expand();
-        let mappings = self.router.mappings()?;
+        let keys: Vec<_> = protocols
+            .iter()
+            .map(|p| (request.external_port, *p))
+            .collect();
+        let mappings = self.router.inspect(&keys)?;
         for protocol in &protocols {
             if mappings
                 .iter()
@@ -134,7 +145,9 @@ impl<R: Router> Engine<R> {
         if rule.router_id != self.router.id() {
             return Err(Error::Conflict("This rule belongs to a different router. Connect to the original network before closing it.".into()));
         }
-        let mappings = self.router.mappings()?;
+        let mappings = self
+            .router
+            .inspect(&[(rule.external_port, rule.protocol)])?;
         let matching: Vec<_> = mappings.iter().filter(|m| m.matches(&rule)).collect();
         if !matching.is_empty() {
             if matching.len() != 1 || !matching[0].owned_by(&rule) {
@@ -199,6 +212,7 @@ mod tests {
         removes: usize,
         fail_udp: bool,
         fail_read: bool,
+        specific_only: bool,
     }
     impl Router for MockRouter {
         fn id(&self) -> String {
@@ -215,6 +229,18 @@ mod tests {
                 Err(Error::Network("timeout".into()))
             } else {
                 Ok(self.entries.clone())
+            }
+        }
+        fn inspect(&mut self, keys: &[(u16, Protocol)]) -> Result<Vec<Mapping>> {
+            if self.specific_only {
+                Ok(self
+                    .entries
+                    .iter()
+                    .filter(|m| keys.contains(&(m.external_port, m.protocol)))
+                    .cloned()
+                    .collect())
+            } else {
+                self.mappings()
             }
         }
         fn add(&mut self, rule: &Rule) -> Result<()> {
@@ -272,6 +298,33 @@ mod tests {
         remote.destination_ip = Some("8.8.8.8".parse().unwrap());
         assert!(engine.open(remote, true).is_err());
         assert_eq!(engine.router.adds, 0);
+    }
+
+    #[test]
+    fn targeted_only_router_supports_lifecycle_and_still_refuses_foreign_rules() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut engine = engine(&dir);
+        engine.router.specific_only = true;
+        engine.router.fail_read = true;
+        let rules = engine.open(request(), true).unwrap();
+        engine.refresh().unwrap();
+        assert!(engine
+            .config
+            .rules
+            .iter()
+            .all(|r| r.status == RuleStatus::Active));
+        assert!(matches!(
+            engine.open(request(), true),
+            Err(Error::Conflict(_))
+        ));
+        engine.router.entries[0].description = "Another application".into();
+        assert!(matches!(
+            engine.close(&rules[0].id, true),
+            Err(Error::Conflict(_))
+        ));
+        assert_eq!(engine.router.removes, 0);
+        engine.close(&rules[1].id, true).unwrap();
+        assert_eq!(engine.router.removes, 1);
     }
     #[test]
     fn opens_both_protocols_and_closes_only_owned_rules() {

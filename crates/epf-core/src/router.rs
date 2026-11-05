@@ -37,6 +37,11 @@ pub trait Router {
     fn local_ip(&self) -> Ipv4Addr;
     fn accepts_destination(&self, ip: Ipv4Addr) -> bool;
     fn mappings(&mut self) -> Result<Vec<Mapping>>;
+    /// Inspect only the keys involved in an operation. Existing adapters keep
+    /// their enumeration behavior unless they support a targeted query.
+    fn inspect(&mut self, _keys: &[(u16, Protocol)]) -> Result<Vec<Mapping>> {
+        self.mappings()
+    }
     fn add(&mut self, rule: &Rule) -> Result<()>;
     fn remove(&mut self, rule: &Rule) -> Result<()>;
 }
@@ -98,7 +103,28 @@ impl UpnpRouter {
         options.bind_addr = SocketAddr::new(IpAddr::V4(local_ip), 0);
         options.timeout = Some(Duration::from_secs(4));
         options.single_search_timeout = Some(Duration::from_secs(1));
-        let gateway = match igd_next::search_gateway(options) {
+        let gateway = match igd_next::search_gateway(options)
+            .and_then(|gateway| {
+                if status
+                    .gateway_ip
+                    .is_some_and(|ip| gateway.addr.ip() != IpAddr::V4(ip))
+                {
+                    Err(igd_next::SearchError::InvalidResponse)
+                } else {
+                    Ok(gateway)
+                }
+            })
+            .or_else(|original| {
+                let Some(ip) = status.gateway_ip else {
+                    return Err(original);
+                };
+                let mut directed = SearchOptions::default();
+                directed.bind_addr = SocketAddr::new(IpAddr::V4(local_ip), 0);
+                directed.broadcast_address = SocketAddr::new(IpAddr::V4(ip), 1900);
+                directed.timeout = Some(Duration::from_secs(3));
+                directed.single_search_timeout = Some(Duration::from_secs(1));
+                igd_next::search_gateway(directed)
+            }) {
             Ok(gateway) => gateway,
             Err(e) => {
                 status.message = format!("No UPnP router responded: {e}. Check that UPnP is enabled, connect directly to your home network, and try without a VPN. Your router may not support automatic forwarding.");
@@ -174,6 +200,12 @@ impl Router for UpnpRouter {
         Err(Error::Network(
             "The router returned too many rules to inspect safely.".into(),
         ))
+    }
+    fn inspect(&mut self, keys: &[(u16, Protocol)]) -> Result<Vec<Mapping>> {
+        match crate::upnp_query::inspect(&self.gateway, self.local_ip, keys)? {
+            Some(mappings) => Ok(mappings),
+            None => self.mappings(),
+        }
     }
     fn add(&mut self, rule: &Rule) -> Result<()> {
         self.gateway.add_port(to_igd(rule.protocol)?, rule.external_port,

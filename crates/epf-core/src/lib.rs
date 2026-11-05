@@ -6,6 +6,7 @@ pub mod model;
 pub mod router;
 pub mod service;
 pub mod store;
+mod upnp_query;
 
 pub use engine::Engine;
 pub use model::*;
