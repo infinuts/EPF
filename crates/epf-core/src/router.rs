@@ -1,6 +1,10 @@
 use crate::{is_destination, now, Error, NetworkStatus, Protocol, Result, Rule};
 use igd_next::{Gateway, GetGenericPortMappingEntryError, PortMappingProtocol, SearchOptions};
-use std::{io::Read, net::{IpAddr, Ipv4Addr, SocketAddr}, time::{Duration, Instant}};
+use std::{
+    io::Read,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    time::{Duration, Instant},
+};
 
 #[derive(Debug, Clone)]
 pub struct Mapping {
@@ -19,8 +23,10 @@ impl Mapping {
     }
 
     pub fn owned_by(&self, rule: &Rule) -> bool {
-        self.matches(rule) && self.internal_port == rule.internal_port
-            && self.destination_ip == rule.destination_ip && self.description == rule.description
+        self.matches(rule)
+            && self.internal_port == rule.internal_port
+            && self.destination_ip == rule.destination_ip
+            && self.description == rule.description
             && self.remote_host.is_empty()
     }
 }
@@ -44,9 +50,17 @@ pub struct UpnpRouter {
 impl UpnpRouter {
     pub fn discover() -> (NetworkStatus, Option<Self>) {
         let mut status = NetworkStatus {
-            local_ip: None, gateway_ip: None, interface: None, router_name: None,
-            manufacturer: None, model: None, router_id: None, wan_ip: None,
-            upnp_available: false, message: String::new(), checked_at: now(),
+            local_ip: None,
+            gateway_ip: None,
+            interface: None,
+            router_name: None,
+            manufacturer: None,
+            model: None,
+            router_id: None,
+            wan_ip: None,
+            upnp_available: false,
+            message: String::new(),
+            checked_at: now(),
         };
         let interface = match netdev::get_default_interface() {
             Ok(interface) => interface,
@@ -55,12 +69,27 @@ impl UpnpRouter {
                 return (status, None);
             }
         };
-        status.interface = Some(interface.friendly_name.clone().unwrap_or(interface.name.clone()));
-        status.gateway_ip = interface.gateway.as_ref().and_then(|g| g.ipv4.first().copied());
-        let local_ip = match interface.ipv4.iter().map(|n| n.addr()).find(|ip| is_destination(*ip)) {
+        status.interface = Some(
+            interface
+                .friendly_name
+                .clone()
+                .unwrap_or(interface.name.clone()),
+        );
+        status.gateway_ip = interface
+            .gateway
+            .as_ref()
+            .and_then(|g| g.ipv4.first().copied());
+        let local_ip = match interface
+            .ipv4
+            .iter()
+            .map(|n| n.addr())
+            .find(|ip| is_destination(*ip))
+        {
             Some(ip) => ip,
             None => {
-                status.message = "This connection has no usable IPv4 address. The MVP needs an IPv4 network.".into();
+                status.message =
+                    "This connection has no usable IPv4 address. The MVP needs an IPv4 network."
+                        .into();
                 return (status, None);
             }
         };
@@ -76,7 +105,10 @@ impl UpnpRouter {
                 return (status, None);
             }
         };
-        if status.gateway_ip.is_some_and(|ip| gateway.addr.ip() != IpAddr::V4(ip)) {
+        if status
+            .gateway_ip
+            .is_some_and(|ip| gateway.addr.ip() != IpAddr::V4(ip))
+        {
             status.message = "A UPnP device responded, but it is not the default gateway. EPF will not change it. Check for a VPN or a second router.".into();
             return (status, None);
         }
@@ -85,7 +117,11 @@ impl UpnpRouter {
             (status.router_name, status.manufacturer, status.model) = metadata;
         }
         status.wan_ip = gateway.get_external_ip().ok();
-        let router = Self { gateway, local_ip, subnets: interface.ipv4 };
+        let router = Self {
+            gateway,
+            local_ip,
+            subnets: interface.ipv4,
+        };
         status.router_id = Some(router.id());
         status.upnp_available = true;
         status.message = "Your router supports UPnP. You can request a forwarding rule.".into();
@@ -95,19 +131,29 @@ impl UpnpRouter {
 
 impl Router for UpnpRouter {
     fn id(&self) -> String {
-        format!("{}|{}|{}", self.gateway.addr, self.gateway.control_url, self.gateway.service_type)
+        format!(
+            "{}|{}|{}",
+            self.gateway.addr, self.gateway.control_url, self.gateway.service_type
+        )
     }
-    fn local_ip(&self) -> Ipv4Addr { self.local_ip }
+    fn local_ip(&self) -> Ipv4Addr {
+        self.local_ip
+    }
     fn accepts_destination(&self, ip: Ipv4Addr) -> bool {
-        is_destination(ip) && self.subnets.iter().any(|subnet|
-            subnet.contains(&ip) && ip != subnet.network() && ip != subnet.broadcast())
+        is_destination(ip)
+            && self.subnets.iter().any(|subnet| {
+                subnet.contains(&ip) && ip != subnet.network() && ip != subnet.broadcast()
+            })
     }
     fn mappings(&mut self) -> Result<Vec<Mapping>> {
         let start = Instant::now();
         let mut mappings = Vec::new();
         for index in 0..4096 {
             if start.elapsed() > Duration::from_secs(20) {
-                return Err(Error::Network("Reading router rules took too long. EPF has not changed them. Try again.".into()));
+                return Err(Error::Network(
+                    "Reading router rules took too long. EPF has not changed them. Try again."
+                        .into(),
+                ));
             }
             match self.gateway.get_generic_port_mapping_entry(index) {
                 Ok(entry) => {
@@ -125,7 +171,9 @@ impl Router for UpnpRouter {
                 Err(e) => return Err(Error::Network(format!("Could not inspect existing router rules: {e}. EPF needs this check to avoid changing someone else's rule."))),
             }
         }
-        Err(Error::Network("The router returned too many rules to inspect safely.".into()))
+        Err(Error::Network(
+            "The router returned too many rules to inspect safely.".into(),
+        ))
     }
     fn add(&mut self, rule: &Rule) -> Result<()> {
         self.gateway.add_port(to_igd(rule.protocol)?, rule.external_port,
@@ -140,21 +188,42 @@ impl Router for UpnpRouter {
 
 fn to_igd(protocol: Protocol) -> Result<PortMappingProtocol> {
     match protocol {
-        Protocol::Tcp => Ok(PortMappingProtocol::TCP), Protocol::Udp => Ok(PortMappingProtocol::UDP),
-        Protocol::Both => Err(Error::Validation("Each router mapping must use one protocol.".into())),
+        Protocol::Tcp => Ok(PortMappingProtocol::TCP),
+        Protocol::Udp => Ok(PortMappingProtocol::UDP),
+        Protocol::Both => Err(Error::Validation(
+            "Each router mapping must use one protocol.".into(),
+        )),
     }
 }
 
 type Metadata = (Option<String>, Option<String>, Option<String>);
 fn router_metadata(gateway: &Gateway) -> std::result::Result<Metadata, Box<dyn std::error::Error>> {
-    let client = reqwest::blocking::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(3)).build()?;
+    let client = reqwest::blocking::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_secs(3))
+        .build()?;
     let url = format!("http://{}{}", gateway.addr, gateway.root_url);
     let mut text = String::new();
-    client.get(url).send()?.error_for_status()?.take(262145).read_to_string(&mut text)?;
-    if text.len() > 262144 { return Err("Device description is too large".into()); }
+    client
+        .get(url)
+        .send()?
+        .error_for_status()?
+        .take(262145)
+        .read_to_string(&mut text)?;
+    if text.len() > 262144 {
+        return Err("Device description is too large".into());
+    }
     let xml = roxmltree::Document::parse(&text)?;
-    let field = |name| xml.descendants().find(|n| n.has_tag_name(name))
-        .and_then(|n| n.text()).map(|s| s.chars().take(128).collect());
-    Ok((field("friendlyName"), field("manufacturer"), field("modelName")))
+    let field = |name| {
+        xml.descendants()
+            .find(|n| n.has_tag_name(name))
+            .and_then(|n| n.text())
+            .map(|s| s.chars().take(128).collect())
+    };
+    Ok((
+        field("friendlyName"),
+        field("manufacturer"),
+        field("modelName"),
+    ))
 }

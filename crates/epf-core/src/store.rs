@@ -1,6 +1,10 @@
 use crate::{Config, Error, Result};
 use fs2::FileExt;
-use std::{fs::{self, File, OpenOptions}, io::Write, path::{Path, PathBuf}};
+use std::{
+    fs::{self, File, OpenOptions},
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 pub struct Store {
     path: PathBuf,
@@ -16,10 +20,18 @@ impl Store {
 
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_path_buf();
-        let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+        let parent = path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
         fs::create_dir_all(parent).map_err(storage)?;
-        let lock = OpenOptions::new().create(true).truncate(false).read(true).write(true)
-            .open(path.with_extension("lock")).map_err(storage)?;
+        let lock = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(path.with_extension("lock"))
+            .map_err(storage)?;
         lock.try_lock_exclusive().map_err(|_| Error::Busy)?;
         Ok(Self { path, _lock: lock })
     }
@@ -30,16 +42,27 @@ impl Store {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Config::default()),
             Err(e) => return Err(storage(e)),
         };
-        let config: Config = serde_json::from_slice(&bytes).map_err(|e|
-            Error::Storage(format!("Could not read {}: {e}. The file has been kept for recovery.", self.path.display())))?;
+        let config: Config = serde_json::from_slice(&bytes).map_err(|e| {
+            Error::Storage(format!(
+                "Could not read {}: {e}. The file has been kept for recovery.",
+                self.path.display()
+            ))
+        })?;
         if config.schema_version != 1 {
-            return Err(Error::Storage(format!("Configuration version {} is not supported. Update EPF before using this file.", config.schema_version)));
+            return Err(Error::Storage(format!(
+                "Configuration version {} is not supported. Update EPF before using this file.",
+                config.schema_version
+            )));
         }
         Ok(config)
     }
 
     pub fn save(&self, config: &Config) -> Result<()> {
-        let parent = self.path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+        let parent = self
+            .path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
         let mut temp = tempfile::NamedTempFile::new_in(parent).map_err(storage)?;
         let json = serde_json::to_vec_pretty(config).map_err(storage)?;
         temp.write_all(&json).map_err(storage)?;

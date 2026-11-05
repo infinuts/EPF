@@ -1,4 +1,8 @@
-use crate::{now, router::{Mapping, Router}, Config, Error, OpenRequest, Profile, Result, Rule, RuleStatus, Store};
+use crate::{
+    now,
+    router::{Mapping, Router},
+    Config, Error, OpenRequest, Profile, Result, Rule, RuleStatus, Store,
+};
 
 pub struct Engine<R: Router> {
     pub router: R,
@@ -9,31 +13,45 @@ pub struct Engine<R: Router> {
 impl<R: Router> Engine<R> {
     pub fn new(router: R, store: Store) -> Result<Self> {
         let config = store.load()?;
-        Ok(Self { router, store, config })
+        Ok(Self {
+            router,
+            store,
+            config,
+        })
     }
-    pub fn config(&self) -> &Config { &self.config }
+    pub fn config(&self) -> &Config {
+        &self.config
+    }
 
     pub fn refresh(&mut self) -> Result<()> {
         let mappings = match self.router.mappings() {
             Ok(mappings) => mappings,
             Err(e) => {
-                for rule in &mut self.config.rules { rule.status = RuleStatus::Unknown; }
+                for rule in &mut self.config.rules {
+                    rule.status = RuleStatus::Unknown;
+                }
                 self.store.save(&self.config)?;
                 return Err(e);
             }
         };
         let router_id = self.router.id();
         for rule in &mut self.config.rules {
-            rule.status = if rule.retired { RuleStatus::Inactive }
-            else if rule.router_id != router_id { RuleStatus::Unknown }
-            else { observed_status(rule, &mappings) };
+            rule.status = if rule.retired {
+                RuleStatus::Inactive
+            } else if rule.router_id != router_id {
+                RuleStatus::Unknown
+            } else {
+                observed_status(rule, &mappings)
+            };
         }
         self.store.save(&self.config)
     }
 
     pub fn open(&mut self, request: OpenRequest, confirmed: bool) -> Result<Vec<Rule>> {
         request.validate()?;
-        if !confirmed { return Err(Error::ConfirmationRequired); }
+        if !confirmed {
+            return Err(Error::ConfirmationRequired);
+        }
         let ip = request.destination_ip.unwrap_or(self.router.local_ip());
         if !self.router.accepts_destination(ip) {
             return Err(Error::Validation("Choose a destination on the detected local IPv4 subnet. VPN and remote destinations are not supported.".into()));
@@ -41,20 +59,40 @@ impl<R: Router> Engine<R> {
         let protocols = request.protocol.expand();
         let mappings = self.router.mappings()?;
         for protocol in &protocols {
-            if mappings.iter().any(|m| m.external_port == request.external_port && m.protocol == *protocol) {
+            if mappings
+                .iter()
+                .any(|m| m.external_port == request.external_port && m.protocol == *protocol)
+            {
                 return Err(Error::Conflict(format!("{} port {} already has a router rule. Choose another external port or close the existing EPF rule first.", protocol, request.external_port)));
             }
         }
-        let rules: Vec<Rule> = protocols.into_iter().map(|protocol| {
-            let id = uuid::Uuid::new_v4().to_string();
-            Rule { description: format!("EPF:{id}"), id, name: request.name.trim().into(),
-                external_port: request.external_port, internal_port: request.internal_port, protocol,
-                destination_ip: ip, lease_seconds: request.lease_seconds, created_at: now(),
-                router_id: self.router.id(), status: RuleStatus::Pending, retired: false }
-        }).collect();
+        let rules: Vec<Rule> = protocols
+            .into_iter()
+            .map(|protocol| {
+                let id = uuid::Uuid::new_v4().to_string();
+                Rule {
+                    description: format!("EPF:{id}"),
+                    id,
+                    name: request.name.trim().into(),
+                    external_port: request.external_port,
+                    internal_port: request.internal_port,
+                    protocol,
+                    destination_ip: ip,
+                    lease_seconds: request.lease_seconds,
+                    created_at: now(),
+                    router_id: self.router.id(),
+                    status: RuleStatus::Pending,
+                    retired: false,
+                }
+            })
+            .collect();
         let offset = self.config.rules.len();
         for previous in &mut self.config.rules {
-            if rules.iter().any(|rule| rule.router_id == previous.router_id && rule.external_port == previous.external_port && rule.protocol == previous.protocol) {
+            if rules.iter().any(|rule| {
+                rule.router_id == previous.router_id
+                    && rule.external_port == previous.external_port
+                    && rule.protocol == previous.protocol
+            }) {
                 previous.retired = true;
                 previous.status = RuleStatus::Inactive;
             }
@@ -78,11 +116,21 @@ impl<R: Router> Engine<R> {
     }
 
     pub fn close(&mut self, id: &str, confirmed: bool) -> Result<()> {
-        if !confirmed { return Err(Error::ConfirmationRequired); }
-        let index = self.config.rules.iter().position(|r| r.id == id)
-            .ok_or_else(|| Error::Validation("This rule is not in EPF's saved configuration.".into()))?;
+        if !confirmed {
+            return Err(Error::ConfirmationRequired);
+        }
+        let index = self
+            .config
+            .rules
+            .iter()
+            .position(|r| r.id == id)
+            .ok_or_else(|| {
+                Error::Validation("This rule is not in EPF's saved configuration.".into())
+            })?;
         let rule = self.config.rules[index].clone();
-        if rule.retired { return Ok(()); }
+        if rule.retired {
+            return Ok(());
+        }
         if rule.router_id != self.router.id() {
             return Err(Error::Conflict("This rule belongs to a different router. Connect to the original network before closing it.".into()));
         }
@@ -92,7 +140,10 @@ impl<R: Router> Engine<R> {
             if matching.len() != 1 || !matching[0].owned_by(&rule) {
                 self.config.rules[index].status = RuleStatus::Conflict;
                 self.store.save(&self.config)?;
-                return Err(Error::Conflict("The router rule has changed or belongs to another app. EPF left it untouched.".into()));
+                return Err(Error::Conflict(
+                    "The router rule has changed or belongs to another app. EPF left it untouched."
+                        .into(),
+                ));
             }
             self.router.remove(&rule)?;
         }
@@ -106,7 +157,13 @@ fn observed_status(rule: &Rule, mappings: &[Mapping]) -> RuleStatus {
     let matching: Vec<_> = mappings.iter().filter(|m| m.matches(rule)).collect();
     match matching.as_slice() {
         [] => RuleStatus::Inactive,
-        [mapping] if mapping.owned_by(rule) => if mapping.enabled { RuleStatus::Active } else { RuleStatus::Inactive },
+        [mapping] if mapping.owned_by(rule) => {
+            if mapping.enabled {
+                RuleStatus::Active
+            } else {
+                RuleStatus::Inactive
+            }
+        }
         _ => RuleStatus::Conflict,
     }
 }
@@ -114,7 +171,10 @@ fn observed_status(rule: &Rule, mappings: &[Mapping]) -> RuleStatus {
 pub fn save_profile(store: &Store, request: OpenRequest) -> Result<Profile> {
     request.validate()?;
     let mut config = store.load()?;
-    let profile = Profile { id: uuid::Uuid::new_v4().to_string(), request };
+    let profile = Profile {
+        id: uuid::Uuid::new_v4().to_string(),
+        request,
+    };
     config.profiles.push(profile.clone());
     store.save(&config)?;
     Ok(profile)
@@ -133,20 +193,44 @@ mod tests {
     use std::net::Ipv4Addr;
 
     #[derive(Default)]
-    struct MockRouter { entries: Vec<Mapping>, adds: usize, removes: usize, fail_udp: bool, fail_read: bool }
+    struct MockRouter {
+        entries: Vec<Mapping>,
+        adds: usize,
+        removes: usize,
+        fail_udp: bool,
+        fail_read: bool,
+    }
     impl Router for MockRouter {
-        fn id(&self) -> String { "router-a".into() }
-        fn local_ip(&self) -> Ipv4Addr { Ipv4Addr::new(192, 168, 1, 2) }
-        fn accepts_destination(&self, ip: Ipv4Addr) -> bool { ip == self.local_ip() }
+        fn id(&self) -> String {
+            "router-a".into()
+        }
+        fn local_ip(&self) -> Ipv4Addr {
+            Ipv4Addr::new(192, 168, 1, 2)
+        }
+        fn accepts_destination(&self, ip: Ipv4Addr) -> bool {
+            ip == self.local_ip()
+        }
         fn mappings(&mut self) -> Result<Vec<Mapping>> {
-            if self.fail_read { Err(Error::Network("timeout".into())) } else { Ok(self.entries.clone()) }
+            if self.fail_read {
+                Err(Error::Network("timeout".into()))
+            } else {
+                Ok(self.entries.clone())
+            }
         }
         fn add(&mut self, rule: &Rule) -> Result<()> {
             self.adds += 1;
-            if self.fail_udp && rule.protocol == Protocol::Udp { return Err(Error::Network("UDP failed".into())); }
-            self.entries.push(Mapping { external_port: rule.external_port, internal_port: rule.internal_port,
-                protocol: rule.protocol, destination_ip: rule.destination_ip, description: rule.description.clone(),
-                enabled: true, remote_host: String::new() });
+            if self.fail_udp && rule.protocol == Protocol::Udp {
+                return Err(Error::Network("UDP failed".into()));
+            }
+            self.entries.push(Mapping {
+                external_port: rule.external_port,
+                internal_port: rule.internal_port,
+                protocol: rule.protocol,
+                destination_ip: rule.destination_ip,
+                description: rule.description.clone(),
+                enabled: true,
+                remote_host: String::new(),
+            });
             Ok(())
         }
         fn remove(&mut self, rule: &Rule) -> Result<()> {
@@ -156,28 +240,46 @@ mod tests {
         }
     }
     fn request() -> OpenRequest {
-        OpenRequest { name: "Game".into(), external_port: 25565, internal_port: 25566,
-            protocol: Protocol::Both, destination_ip: None, lease_seconds: 3600 }
+        OpenRequest {
+            name: "Game".into(),
+            external_port: 25565,
+            internal_port: 25566,
+            protocol: Protocol::Both,
+            destination_ip: None,
+            lease_seconds: 3600,
+        }
     }
     fn engine(dir: &tempfile::TempDir) -> Engine<MockRouter> {
-        Engine::new(MockRouter::default(), Store::open(dir.path().join("config.json")).unwrap()).unwrap()
+        Engine::new(
+            MockRouter::default(),
+            Store::open(dir.path().join("config.json")).unwrap(),
+        )
+        .unwrap()
     }
 
     #[test]
     fn confirmation_and_validation_precede_mutations() {
-        let dir = tempfile::tempdir().unwrap(); let mut engine = engine(&dir);
-        assert!(matches!(engine.open(request(), false), Err(Error::ConfirmationRequired)));
-        let mut invalid = request(); invalid.external_port = 0;
+        let dir = tempfile::tempdir().unwrap();
+        let mut engine = engine(&dir);
+        assert!(matches!(
+            engine.open(request(), false),
+            Err(Error::ConfirmationRequired)
+        ));
+        let mut invalid = request();
+        invalid.external_port = 0;
         assert!(engine.open(invalid, true).is_err());
-        let mut remote = request(); remote.destination_ip = Some("8.8.8.8".parse().unwrap());
+        let mut remote = request();
+        remote.destination_ip = Some("8.8.8.8".parse().unwrap());
         assert!(engine.open(remote, true).is_err());
         assert_eq!(engine.router.adds, 0);
     }
     #[test]
     fn opens_both_protocols_and_closes_only_owned_rules() {
-        let dir = tempfile::tempdir().unwrap(); let mut engine = engine(&dir);
+        let dir = tempfile::tempdir().unwrap();
+        let mut engine = engine(&dir);
         let rules = engine.open(request(), true).unwrap();
-        assert_eq!(rules.len(), 2); assert_eq!(engine.router.adds, 2);
+        assert_eq!(rules.len(), 2);
+        assert_eq!(engine.router.adds, 2);
         assert!(engine.open(request(), true).is_err());
         assert!(engine.close(&rules[0].id, false).is_err());
         engine.close(&rules[0].id, true).unwrap();
@@ -188,9 +290,13 @@ mod tests {
     }
     #[test]
     fn partial_failure_is_persisted_and_refresh_recovers_pending_state() {
-        let dir = tempfile::tempdir().unwrap(); let mut engine = engine(&dir);
+        let dir = tempfile::tempdir().unwrap();
+        let mut engine = engine(&dir);
         engine.router.fail_udp = true;
-        assert!(matches!(engine.open(request(), true), Err(Error::Partial(_))));
+        assert!(matches!(
+            engine.open(request(), true),
+            Err(Error::Partial(_))
+        ));
         let saved = engine.store.load().unwrap();
         assert_eq!(saved.rules[0].status, RuleStatus::Active);
         assert_eq!(saved.rules[1].status, RuleStatus::Pending);
@@ -198,11 +304,16 @@ mod tests {
         assert_eq!(engine.config.rules[1].status, RuleStatus::Inactive);
         engine.router.fail_read = true;
         assert!(engine.refresh().is_err());
-        assert!(engine.config.rules.iter().all(|r| r.status == RuleStatus::Unknown));
+        assert!(engine
+            .config
+            .rules
+            .iter()
+            .all(|r| r.status == RuleStatus::Unknown));
     }
     #[test]
     fn different_router_and_changed_destination_block_deletion() {
-        let dir = tempfile::tempdir().unwrap(); let mut engine = engine(&dir);
+        let dir = tempfile::tempdir().unwrap();
+        let mut engine = engine(&dir);
         let rules = engine.open(request(), true).unwrap();
         engine.config.rules[0].router_id = "other-router".into();
         assert!(engine.close(&rules[0].id, true).is_err());
@@ -212,7 +323,8 @@ mod tests {
     }
     #[test]
     fn profiles_save_without_router_mutations() {
-        let dir = tempfile::tempdir().unwrap(); let engine = engine(&dir);
+        let dir = tempfile::tempdir().unwrap();
+        let engine = engine(&dir);
         let profile = save_profile(&engine.store, request()).unwrap();
         assert_eq!(engine.store.load().unwrap().profiles.len(), 1);
         delete_profile(&engine.store, &profile.id).unwrap();

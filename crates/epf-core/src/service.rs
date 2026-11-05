@@ -10,22 +10,33 @@ pub fn snapshot(path: &Path) -> Result<Snapshot> {
         (engine.config().clone(), warning)
     } else {
         let mut config = store.load()?;
-        for rule in &mut config.rules { rule.status = RuleStatus::Unknown; }
+        for rule in &mut config.rules {
+            rule.status = RuleStatus::Unknown;
+        }
         (config, Some(network.message.clone()))
     };
-    Ok(Snapshot { network, rules: config.rules, profiles: config.profiles, warning })
+    Ok(Snapshot {
+        network,
+        rules: config.rules,
+        profiles: config.profiles,
+        warning,
+    })
 }
 
 pub fn open(path: &Path, request: OpenRequest, confirmed: bool) -> Result<Vec<Rule>> {
     request.validate()?;
-    if !confirmed { return Err(Error::ConfirmationRequired); }
+    if !confirmed {
+        return Err(Error::ConfirmationRequired);
+    }
     let (network, router) = UpnpRouter::discover();
     let router = router.ok_or(Error::Network(network.message))?;
     Engine::new(router, Store::open(path)?)?.open(request, confirmed)
 }
 
 pub fn close(path: &Path, id: &str, confirmed: bool) -> Result<()> {
-    if !confirmed { return Err(Error::ConfirmationRequired); }
+    if !confirmed {
+        return Err(Error::ConfirmationRequired);
+    }
     let (network, router) = UpnpRouter::discover();
     let router = router.ok_or(Error::Network(network.message))?;
     Engine::new(router, Store::open(path)?)?.close(id, confirmed)
