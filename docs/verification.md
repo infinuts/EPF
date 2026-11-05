@@ -7,7 +7,7 @@ Checked on 2026-11-05 in Windows x64 with Node.js 24.18.0 and Rust 1.99.1.
 | Core Rust tests                                          | 12 passed                                        |
 | CLI executable integration tests                         | 3 passed                                         |
 | Frontend validation tests                                | 3 passed                                         |
-| Playwright browser flows                                 | 5 passed                                         |
+| Playwright browser flows                                 | 6 passed                                         |
 | TypeScript, ESLint, version consistency                  | Passed                                           |
 | Rust formatting and core/CLI Clippy with warnings denied | Passed                                           |
 | Production frontend bundle                               | Built                                            |
@@ -41,3 +41,13 @@ node scripts/smoke-native.mjs
 ```
 
 The script reads network state and tests a rejected, unconfirmed request. It never approves a router mutation or enables public IP lookup. Stop the test app after checking it; remote debugging is not part of normal EPF startup.
+
+## Interface polish checks
+
+The polished interface was visually checked at 1280 × 900 and 390 × 844, including the confirmation dialog and help page. Larger labels and darker secondary text replace the original small, pale text. Page transitions use scoped GSAP contexts and clean up when navigation changes. Reduced-motion settings disable both page transitions and help-page scroll effects.
+
+The sixth browser test checks that the pinned help panel stays above the terminal section, reduced-motion content remains fully visible, and navigating away removes the pin wrapper. Existing confirmation, profile, diagnostics, unsupported-router, and narrow-layout flows also pass.
+
+The Windows executable and NSIS installer were rebuilt after this polish. Repeating the native smoke-check launch was blocked by the execution approval policy, so the native runtime results above describe the earlier MVP build. The polished build has production compilation and browser-flow verification, but has not been runtime-verified through native IPC again.
+
+To refresh the README screenshots, start `npm run dev` and run `node scripts/capture-preview.mjs`. This uses only the labeled browser preview and stops at confirmation without opening a port. Additional narrow-layout and help screenshots are saved in the ignored `artifacts/` directory.
