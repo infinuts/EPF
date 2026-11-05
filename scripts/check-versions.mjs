@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { log } from 'node:console';
 import process from 'node:process';
+import { URL } from 'node:url';
 import assert from 'node:assert/strict';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');

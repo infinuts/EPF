@@ -153,6 +153,8 @@ npm run build
 
 The tests use fake routers or browser sample data. They never open a port on your real network. See [CONTRIBUTING.md](CONTRIBUTING.md) for the project layout, compatibility policy, and useful router reports. The [roadmap](docs/roadmap.md) lists the next integrations.
 
+The [verification notes](docs/verification.md) record what was checked in the initial Windows build and which hardware and platforms still need testing.
+
 EPF was inspired by [ISPF](https://github.com/kanetjuh/ISPF). This implementation uses a new Rust engine and Tauri interface. Thanks to the maintainers of Tauri, igd-next, netdev, React, Radix, Phosphor Icons, and Geist for the pieces it is built on.
 
 Licensed under [MIT](LICENSE).
