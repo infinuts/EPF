@@ -1,0 +1,19 @@
+[package]
+name = "epf-cli"
+description = "Easy Port Forwarding command line interface"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "epf"
+path = "src/main.rs"
+
+[dependencies]
+epf-core = { path = "../epf-core" }
+serde_json.workspace = true
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3"

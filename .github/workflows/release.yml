@@ -1,0 +1,83 @@
+name: Build release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-latest
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - name: Build desktop installers into a draft release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: EPF v__VERSION__
+          releaseBody: |
+            Download the installer for your operating system below.
+            The CLI is available as a separate archive. See README.md for usage and release limitations.
+            These preview builds are unsigned. macOS builds use an ad-hoc signature and are not notarized.
+          releaseDraft: true
+          prerelease: true
+          args: --target ${{ matrix.target }}
+      - name: Build CLI
+        run: cargo build --locked --release -p epf-cli --target ${{ matrix.target }}
+      - name: Package CLI (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path cli-package -Force | Out-Null
+          Copy-Item target/${{ matrix.target }}/release/epf.exe, LICENSE, README.md -Destination cli-package
+          Compress-Archive -Path cli-package/* -DestinationPath epf-cli-${{ matrix.target }}.zip
+      - name: Package CLI (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p cli-package
+          cp target/${{ matrix.target }}/release/epf LICENSE README.md cli-package/
+          tar -czf epf-cli-${{ matrix.target }}.tar.gz -C cli-package .
+      - name: Upload CLI to draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          gh release upload "v$VERSION" epf-cli-${{ matrix.target }}.* --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.target }}
+          path: epf-cli-${{ matrix.target }}.*

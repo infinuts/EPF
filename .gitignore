@@ -1,0 +1,14 @@
+node_modules/
+dist/
+target/
+.tools/
+playwright-report/
+test-results/
+*.log
+*.tsbuildinfo
+src-tauri/gen/
+artifacts/
+.DS_Store
+.env
+.env.*
+!.env.example

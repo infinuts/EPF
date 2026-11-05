@@ -1,0 +1,26 @@
+name: Report a problem
+description: Tell us where EPF got stuck. Please remove public IP addresses before posting.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: What were you trying to do, and what did EPF show instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: EPF version and operating system
+      placeholder: EPF 0.1.0, Windows 11
+    validations:
+      required: true
+  - type: input
+    id: router
+    attributes:
+      label: Router manufacturer and model (if known)
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Error message or diagnostics
+      description: Remove public IP addresses, device identifiers, and other details you want to keep private.
