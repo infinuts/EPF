@@ -37,6 +37,13 @@ Once installed:
 
 The default lease is one hour. Your router expires it even if EPF is closed. EPF doesn't automatically renew leases or restore old rules when you restart it. To remove a mapping earlier, click **Close** in its row and confirm.
 
+<details>
+<summary>See the confirmation step</summary>
+
+![EPF asks you to review the destination, protocol, and lease before opening a port](docs/confirmation.png)
+
+</details>
+
 ## What works in the MVP
 
 - Detect the default interface, local IPv4 address, and gateway.
