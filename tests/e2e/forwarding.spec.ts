@@ -100,3 +100,33 @@ test('layout fits a small viewport and dialogs support keyboard dismissal', asyn
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).not.toBeVisible();
 });
+
+test('help motion stays contained and reduced motion leaves content fully visible', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Help & getting started' }).click();
+  await expect(page.locator('.guide-layout')).toHaveCSS('opacity', '1');
+  await page.locator('.cli-guide').scrollIntoViewIfNeeded();
+  await expect
+    .poll(async () => {
+      const aside = await page.locator('.guide-aside').boundingBox();
+      const cli = await page.locator('.cli-guide').boundingBox();
+      return Boolean(aside && cli && aside.y + aside.height <= cli.y);
+    })
+    .toBe(true);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const step of await page.locator('.guide-step').all()) {
+    await expect(step).toHaveCSS('opacity', '1');
+    await expect(step).toHaveCSS('transform', 'none');
+  }
+  await page.getByRole('button', { name: 'Port forwarding', exact: false }).first().click();
+  await expect(page.getByRole('heading', { name: 'Open a port. Get connected.' })).toHaveCSS(
+    'opacity',
+    '1',
+  );
+  await expect(page.locator('.pin-spacer')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

@@ -27,6 +27,7 @@ import { api, isPreview } from './api';
 import type { Diagnostics, OpenRequest, Rule, Snapshot } from './types';
 import RuleDialog from './components/RuleDialog';
 import CloseDialog from './components/CloseDialog';
+import { usePageMotion } from './usePageMotion';
 
 type Page = 'ports' | 'diagnostics' | 'profiles' | 'guide';
 type Filter = 'all' | 'active' | 'inactive';
@@ -43,6 +44,7 @@ const protocolLabel = (protocol: string) =>
 
 export default function App() {
   const [page, setPage] = useState<Page>('ports');
+  const motionScope = usePageMotion(page);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +144,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" ref={motionScope}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
@@ -154,7 +156,6 @@ export default function App() {
           <span className="version">v0.1</span>
         </div>
         <p className="brand-description">Easy Port Forwarding</p>
-        <div className="sidebar-section-label">YOUR WORKSPACE</div>
         <nav aria-label="Main navigation">
           {nav.map(({ id, label, icon: Icon }) => (
             <button
@@ -173,7 +174,7 @@ export default function App() {
           <div className="tip-icon">
             <ShieldCheck size={22} />
           </div>
-          <strong>A little peace of mind.</strong>
+          <strong>You’re in control.</strong>
           <p>
             Only the ports you choose.
             <br />
@@ -226,20 +227,10 @@ export default function App() {
             <div className="preview-banner">
               <Info size={16} />
               <span>You’re exploring a sample network. No real router settings will change.</span>
-              <span className="preview-banner-label">DESKTOP APP PREVIEW</span>
             </div>
           )}
           <div className="page-heading">
             <div>
-              <div className="eyebrow">
-                {page === 'ports'
-                  ? 'LESS SETUP. MORE CONNECTION.'
-                  : page === 'diagnostics'
-                    ? 'KNOW YOUR NETWORK'
-                    : page === 'profiles'
-                      ? 'READY WHEN YOU ARE'
-                      : 'LET’S GET YOU CONNECTED'}
-              </div>
               <h1>{page === 'ports' ? 'Open a port. Get connected.' : title}</h1>
               <p>
                 {page === 'ports'
@@ -704,20 +695,25 @@ export default function App() {
                 <h2>Your first port, in three steps.</h2>
                 {[
                   {
+                    icon: WifiHigh,
                     title: 'Get on your home network.',
                     text: 'Connect over Wi-Fi or Ethernet. EPF finds your default gateway and checks whether it supports UPnP. A VPN or guest network can get in the way.',
                   },
                   {
+                    icon: PlugsConnected,
                     title: 'Tell EPF what you need.',
                     text: 'Enter the port from your app or game’s instructions. Choose TCP, UDP, or both. Advanced options let you use a different internal port or another device on your local subnet.',
                   },
                   {
+                    icon: ShieldCheck,
                     title: 'Review it, then open it.',
                     text: 'Check the destination and duration. EPF asks before changing your router. Keep the app or server listening on that port and allow it through your computer’s firewall.',
                   },
-                ].map((step, index) => (
+                ].map((step) => (
                   <div className="guide-step" key={step.title}>
-                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <span>
+                      <step.icon size={21} />
+                    </span>
                     <div>
                       <h3>{step.title}</h3>
                       <p>{step.text}</p>
@@ -777,7 +773,6 @@ export default function App() {
               <ShieldCheck size={14} />
               Your network stays in your hands.
             </span>
-            <span>Made for getting connected.</span>
           </footer>
         </main>
       </div>

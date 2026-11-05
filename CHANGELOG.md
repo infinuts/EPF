@@ -9,6 +9,8 @@
 - Rule refresh, close and reopen flows, plus reusable profiles.
 - CGNAT and upstream NAT indications with optional public IP lookup.
 - React desktop interface with a separate labeled browser preview.
+- Larger, higher-contrast interface text and clearer port confirmation details.
+- Scoped GSAP page transitions and help-page motion that respects reduced-motion settings.
 - Unit, CLI, and browser tests, plus cross-platform CI and draft release packaging.
 
 NAT-PMP, PCP, IPv6 pinholes, external reachability testing, signing, and notarization are not included in this preview.
