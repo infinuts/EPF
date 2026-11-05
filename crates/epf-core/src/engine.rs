@@ -24,7 +24,8 @@ impl<R: Router> Engine<R> {
         };
         let router_id = self.router.id();
         for rule in &mut self.config.rules {
-            rule.status = if rule.router_id != router_id { RuleStatus::Unknown }
+            rule.status = if rule.retired { RuleStatus::Inactive }
+            else if rule.router_id != router_id { RuleStatus::Unknown }
             else { observed_status(rule, &mappings) };
         }
         self.store.save(&self.config)
@@ -49,9 +50,15 @@ impl<R: Router> Engine<R> {
             Rule { description: format!("EPF:{id}"), id, name: request.name.trim().into(),
                 external_port: request.external_port, internal_port: request.internal_port, protocol,
                 destination_ip: ip, lease_seconds: request.lease_seconds, created_at: now(),
-                router_id: self.router.id(), status: RuleStatus::Pending }
+                router_id: self.router.id(), status: RuleStatus::Pending, retired: false }
         }).collect();
         let offset = self.config.rules.len();
+        for previous in &mut self.config.rules {
+            if rules.iter().any(|rule| rule.router_id == previous.router_id && rule.external_port == previous.external_port && rule.protocol == previous.protocol) {
+                previous.retired = true;
+                previous.status = RuleStatus::Inactive;
+            }
+        }
         self.config.rules.extend(rules.clone());
         // Journal every intended operation before the first router mutation.
         self.store.save(&self.config)?;
@@ -75,6 +82,7 @@ impl<R: Router> Engine<R> {
         let index = self.config.rules.iter().position(|r| r.id == id)
             .ok_or_else(|| Error::Validation("This rule is not in EPF's saved configuration.".into()))?;
         let rule = self.config.rules[index].clone();
+        if rule.retired { return Ok(()); }
         if rule.router_id != self.router.id() {
             return Err(Error::Conflict("This rule belongs to a different router. Connect to the original network before closing it.".into()));
         }
@@ -89,6 +97,7 @@ impl<R: Router> Engine<R> {
             self.router.remove(&rule)?;
         }
         self.config.rules[index].status = RuleStatus::Inactive;
+        self.config.rules[index].retired = true;
         self.store.save(&self.config)
     }
 }

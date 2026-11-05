@@ -90,6 +90,9 @@ pub struct Rule {
     pub router_id: String,
     pub description: String,
     pub status: RuleStatus,
+    /// A closed or superseded journal record must not claim a later mapping.
+    #[serde(default)]
+    pub retired: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

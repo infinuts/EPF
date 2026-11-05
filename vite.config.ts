@@ -3,7 +3,11 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  server: { port: 1420, strictPort: true },
+  server: {
+    port: 1427,
+    strictPort: true,
+    watch: { ignored: ['**/target/**', '**/src-tauri/**', '**/.tools/**'] },
+  },
   clearScreen: false,
   envPrefix: ['VITE_'],
 });

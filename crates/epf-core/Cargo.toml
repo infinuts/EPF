@@ -10,7 +10,7 @@ repository.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-igd-next = { version = "0.18", default-features = false }
+igd-next = { version = "0.18", default-features = false, features = ["io_sync"] }
 netdev = "0.47"
 directories = "6"
 fs2 = "0.4"
