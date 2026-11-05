@@ -53,7 +53,7 @@ The journal is only as durable as the host filesystem and user account. Don't ma
 
 ## Desktop boundary
 
-Only the local main window is granted the standard Tauri core capability. There are no shell, arbitrary filesystem, credential, or remote-page capabilities. Production CSP allows bundled scripts and fonts and the Tauri IPC channel. The Rust commands revalidate input and require the confirmation argument even if the interface is bypassed.
+The main local window has an empty plugin-permission list. There are no shell, filesystem, credential, remote-page, or extra core API grants. Application commands are the narrow bridge to the engine. Production CSP allows bundled scripts and fonts and the Tauri IPC channel. The Rust commands revalidate input and require the confirmation argument even if the interface is bypassed.
 
 When the frontend runs outside Tauri, `api.ts` selects an explicitly labeled sample-data adapter. It uses a separate versioned localStorage key, never claims to inspect the real network, and cannot invoke the Rust network engine.
 

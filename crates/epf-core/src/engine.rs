@@ -331,4 +331,37 @@ mod tests {
         assert!(engine.store.load().unwrap().profiles.is_empty());
         assert_eq!(engine.router.adds, 0);
     }
+
+    #[test]
+    fn retired_history_does_not_claim_a_reopened_mapping() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut engine = engine(&dir);
+        let first = engine.open(request(), true).unwrap();
+        for rule in first {
+            engine.close(&rule.id, true).unwrap();
+        }
+        let second = engine.open(request(), true).unwrap();
+        engine.refresh().unwrap();
+        assert!(engine.config.rules[..2]
+            .iter()
+            .all(|r| r.retired && r.status == RuleStatus::Inactive));
+        assert!(engine.config.rules[2..]
+            .iter()
+            .all(|r| !r.retired && r.status == RuleStatus::Active));
+        assert_ne!(engine.config.rules[0].id, second[0].id);
+        let deletes = engine.router.removes;
+        let old_id = engine.config.rules[0].id.clone();
+        engine.close(&old_id, true).unwrap();
+        assert_eq!(engine.router.removes, deletes);
+    }
+
+    #[test]
+    fn a_failed_journal_write_prevents_router_mutation() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut engine = engine(&dir);
+        // A directory where the config file should be makes atomic replacement fail.
+        std::fs::create_dir(dir.path().join("config.json")).unwrap();
+        assert!(engine.open(request(), true).is_err());
+        assert_eq!(engine.router.adds, 0);
+    }
 }

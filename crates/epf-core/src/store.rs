@@ -103,4 +103,17 @@ mod tests {
             assert_eq!(fs::read_to_string(&path).unwrap(), content);
         }
     }
+
+    #[test]
+    fn original_version_one_records_load_without_new_optional_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.json");
+        fs::write(&path, r#"{"schemaVersion":1,"rules":[{"id":"old","name":"Game","externalPort":25565,"internalPort":25565,"protocol":"tcp","destinationIp":"192.168.1.2","leaseSeconds":3600,"createdAt":1,"routerId":"router-a","description":"EPF:old","status":"active"}]}"#).unwrap();
+        let store = Store::open(&path).unwrap();
+        let config = store.load().unwrap();
+        assert!(!config.rules[0].retired);
+        assert!(config.profiles.is_empty());
+        store.save(&config).unwrap();
+        assert_eq!(store.load().unwrap().rules[0].id, "old");
+    }
 }

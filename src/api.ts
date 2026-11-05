@@ -69,9 +69,18 @@ function writePreview(snapshot: Snapshot) {
   localStorage.setItem(key, JSON.stringify({ rules: snapshot.rules, profiles: snapshot.profiles }));
 }
 
+let snapshotInFlight: Promise<Snapshot> | null = null;
+
 export const api = {
   async snapshot(): Promise<Snapshot> {
-    return isPreview ? readPreview() : invoke('get_snapshot');
+    if (!snapshotInFlight) {
+      snapshotInFlight = (
+        isPreview ? Promise.resolve(readPreview()) : invoke<Snapshot>('get_snapshot')
+      ).finally(() => {
+        snapshotInFlight = null;
+      });
+    }
+    return snapshotInFlight;
   },
   async open(request: OpenRequest, confirmed: boolean): Promise<Rule[]> {
     if (!confirmed) throw new Error('Confirm this operation before opening a port.');
