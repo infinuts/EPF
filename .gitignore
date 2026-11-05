@@ -5,6 +5,8 @@ target/
 playwright-report/
 test-results/
 *.log
+*.tsbuildinfo
+src-tauri/gen/
 .DS_Store
 .env
 .env.*
