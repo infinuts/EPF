@@ -1,0 +1,20 @@
+[workspace]
+members = ["crates/epf-core", "crates/epf-cli", "src-tauri"]
+default-members = ["crates/epf-core", "crates/epf-cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/infinuts/EPF"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

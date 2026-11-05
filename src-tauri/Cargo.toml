@@ -1,0 +1,19 @@
+[package]
+name = "epf-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+default-run = "epf-desktop"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+epf-core = { path = "../crates/epf-core" }
+tauri = { version = "2", features = [] }
+serde.workspace = true
+
+[lib]
+name = "epf_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
