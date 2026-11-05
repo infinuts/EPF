@@ -77,7 +77,7 @@ jobs:
         run: |
           VERSION=$(node -p "require('./package.json').version")
           gh release upload "v$VERSION" epf-cli-${{ matrix.target }}.* --clobber
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cli-${{ matrix.target }}
           path: epf-cli-${{ matrix.target }}.*
